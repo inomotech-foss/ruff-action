@@ -27,9 +27,17 @@ function parsePyproject(pyprojectContent: string): string | undefined {
   const pyproject: {
     project?: {
       dependencies?: string[];
-      "optional-dependencies"?: Map<string, string[]>;
+      "optional-dependencies"?: Record<string, string[]>;
     };
-    "dependency-groups"?: Map<string, Array<string | object>>;
+    "dependency-groups"?: Record<string, Array<string | object>>;
+    tool?: {
+      poetry?: {
+        group?: Record<
+          string,
+          { dependencies: Record<string, string | object> }
+        >;
+      };
+    };
   } = toml.parse(pyprojectContent);
   const dependencies: string[] = pyproject?.project?.dependencies || [];
   const optionalDependencies: string[] = Object.values(
@@ -40,8 +48,18 @@ function parsePyproject(pyprojectContent: string): string | undefined {
   )
     .flat()
     .filter((item: string | object) => typeof item === "string");
+  // Special handling for Poetry until it supports PEP 735
+  // See: <https://github.com/python-poetry/poetry/issues/9751>
+  const poetryGroups = Object.values(pyproject?.tool?.poetry?.group ?? {});
+  const poetryGroupDependencies: string[] = poetryGroups.flatMap((group) =>
+    Object.keys(group.dependencies),
+  );
   return getRuffVersionFromAllDependencies(
-    dependencies.concat(optionalDependencies, devDependencies),
+    dependencies.concat(
+      optionalDependencies,
+      devDependencies,
+      poetryGroupDependencies,
+    ),
   );
 }
 
