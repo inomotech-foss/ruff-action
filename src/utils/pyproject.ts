@@ -48,19 +48,21 @@ function parsePyproject(pyprojectContent: string): string | undefined {
   )
     .flat()
     .filter((item: string | object) => typeof item === "string");
+  const version = getRuffVersionFromAllDependencies(
+    dependencies.concat(optionalDependencies, devDependencies),
+  );
+  if (version) return version;
+
   // Special handling for Poetry until it supports PEP 735
   // See: <https://github.com/python-poetry/poetry/issues/9751>
   const poetryGroups = Object.values(pyproject?.tool?.poetry?.group ?? {});
-  const poetryGroupDependencies: string[] = poetryGroups.flatMap((group) =>
-    Object.keys(group.dependencies),
-  );
-  return getRuffVersionFromAllDependencies(
-    dependencies.concat(
-      optionalDependencies,
-      devDependencies,
-      poetryGroupDependencies,
-    ),
-  );
+  return poetryGroups
+    .flatMap((group) => Object.entries(group.dependencies))
+    .map(([name, spec]) => {
+      if (name === "ruff" && typeof spec === "string") return spec;
+      return undefined;
+    })
+    .find((version) => version !== undefined);
 }
 
 export function getRuffVersionFromRequirementsFile(
